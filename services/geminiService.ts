@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Platform, EnrichmentResult } from "../types";
+import { Platform, EnrichmentResult, SearchSuggestion } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -101,5 +101,51 @@ export const getSearchIntent = async (query: string): Promise<SearchIntentRespon
     return JSON.parse(response.text);
   } catch (e) {
     return { keywords: [query], topics: [], intent: query };
+  }
+};
+
+/**
+ * AI-powered suggestions GROUNDED in user's library context.
+ */
+export const getSearchSuggestions = async (partial: string, libraryContext: { creators: string[], topics: string[], recentTitles: string[] }): Promise<SearchSuggestion[]> => {
+  if (partial.length < 2) return [];
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `The user is typing a search query: "${partial}".
+    
+    GROUNDING CONTEXT (Items already in their library):
+    - Creators they follow: ${libraryContext.creators.join(', ')}
+    - Topics they have: ${libraryContext.topics.join(', ')}
+    - Example Recent Titles: ${libraryContext.recentTitles.join(' | ')}
+    
+    TASK:
+    Predict 3-5 search suggestions that are STRICTLY relevant to the GROUNDING CONTEXT. 
+    DO NOT suggest generic or irrelevant things they don't have.
+    If they type "rec", and have "Food" topic, suggest "recipes" or "cooking".
+    If they type a handle like "@iam", and have "@iamcardib", suggest that.
+    
+    Format: JSON Array of {text, type, score}. types: ai, topic, creator.`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            text: { type: Type.STRING },
+            type: { type: Type.STRING },
+            score: { type: Type.NUMBER }
+          },
+          required: ["text", "type"]
+        }
+      }
+    }
+  });
+
+  try {
+    return JSON.parse(response.text).map((s: any) => ({ ...s, score: s.score || 1 }));
+  } catch (e) {
+    return [];
   }
 };

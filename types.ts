@@ -43,3 +43,13 @@ export interface EnrichmentResult {
   platform: Platform;
   debugInfo: DebugMetadata;
 }
+
+export interface SearchSuggestion {
+  text: string;
+  type: 'history' | 'ai' | 'topic' | 'creator';
+  score: number;
+}
+
+export interface SearchIndex {
+  [word: string]: string[]; // maps word to item IDs
+}
